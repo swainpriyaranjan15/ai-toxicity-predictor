@@ -1,0 +1,28 @@
+# Dataset
+jigsaw-toxic-comment-classification-challenge/
+
+# Old models
+bert_toxicity_model/
+jigsaw_toxicity_model/
+jigsaw_6label_model/
+jigsaw_6label_model_v2/
+jigsaw_6label_model_v3/
+
+# V4 training checkpoints
+jigsaw_6label_model_v4/checkpoint-5000/
+jigsaw_6label_model_v4/checkpoint-10000/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Virtual environments
+venv/
+.venv/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Temporary files
+*.tmp
+*.log
