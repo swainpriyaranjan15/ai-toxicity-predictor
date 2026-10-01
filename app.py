@@ -4,16 +4,24 @@ FastAPI Backend - AI Toxicity Predictor (V4, 6-label multi-label model)
 
 from datetime import datetime
 from typing import Any, Dict, List, Optional
+from pathlib import Path
 
 import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
 from pydantic import BaseModel
 
 from predict import ToxicityModerationPipeline
 
-LABELS = ["toxic", "severe_toxic", "obscene", "threat", "insult", "identity_hate"]
+LABELS = [
+    "toxic",
+    "severe_toxic",
+    "obscene",
+    "threat",
+    "insult",
+    "identity_hate",
+]
 
 app = FastAPI(
     title="AI Toxicity Predictor API",
@@ -29,6 +37,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 # ==================== MODELS ====================
 
 class PredictionRequest(BaseModel):
@@ -42,6 +51,7 @@ class BatchRequest(BaseModel):
 # ==================== PIPELINE ====================
 
 print("Initializing toxicity pipeline...")
+
 try:
     pipeline = ToxicityModerationPipeline()
     pipeline_ready = True
@@ -77,59 +87,100 @@ def format_result(result: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-# ==================== ENDPOINTS ====================
+# ==================== FRONTEND ====================
 
-@app.get("/", tags=["Info"])
+BASE_DIR = Path(__file__).resolve().parent
+INDEX_FILE = BASE_DIR / "index.html"
+
+
+@app.get("/", tags=["Frontend"])
 async def root():
-    return {
-        "project": "AI Toxicity Predictor",
-        "version": "2.0.0",
-        "model": "DistilBERT V4 (6-label)",
-        "endpoints": ["/health", "/predict", "/predict-batch", "/categories", "/examples", "/docs"],
-    }
+    return FileResponse(INDEX_FILE)
 
+
+# ==================== API ENDPOINTS ====================
 
 @app.get("/health", tags=["Health"])
 async def health_check():
     if not pipeline_ready:
         raise HTTPException(status_code=503, detail="Pipeline not initialized")
+
     device = getattr(pipeline.predictor, "device", "unknown")
-    return {"status": "healthy", "model": "DistilBERT-V4-6-label", "device": str(device)}
+
+    return {
+        "status": "healthy",
+        "model": "DistilBERT-V4-6-label",
+        "device": str(device),
+    }
 
 
 @app.post("/predict", tags=["Prediction"])
 async def predict(request: PredictionRequest):
     if not pipeline_ready:
-        raise HTTPException(status_code=503, detail="Pipeline not initialized")
+        raise HTTPException(
+            status_code=503,
+            detail="Pipeline not initialized"
+        )
+
     if not request.text or not request.text.strip():
-        raise HTTPException(status_code=400, detail="Text cannot be empty")
+        raise HTTPException(
+            status_code=400,
+            detail="Text cannot be empty"
+        )
 
     try:
         result = pipeline.analyze(request.text)
         return format_result(result)
+
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Prediction failed: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Prediction failed: {str(e)}"
+        )
 
 
 @app.post("/predict-batch", tags=["Prediction"])
 async def predict_batch(request: BatchRequest):
     if not pipeline_ready:
-        raise HTTPException(status_code=503, detail="Pipeline not initialized")
+        raise HTTPException(
+            status_code=503,
+            detail="Pipeline not initialized"
+        )
+
     if not request.texts:
-        raise HTTPException(status_code=400, detail="Texts list cannot be empty")
+        raise HTTPException(
+            status_code=400,
+            detail="Texts list cannot be empty"
+        )
+
     if len(request.texts) > 100:
-        raise HTTPException(status_code=400, detail="Maximum 100 texts per batch")
+        raise HTTPException(
+            status_code=400,
+            detail="Maximum 100 texts per batch"
+        )
 
     try:
-        texts = [t for t in request.texts if t and t.strip()]
-        results = [format_result(pipeline.analyze(t)) for t in texts]
+        texts = [
+            t for t in request.texts
+            if t and t.strip()
+        ]
+
+        results = [
+            format_result(pipeline.analyze(t))
+            for t in texts
+        ]
+
         return {
             "total": len(results),
             "predictions": results,
             "timestamp": datetime.now().isoformat(),
         }
+
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Batch prediction failed: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Batch prediction failed: {str(e)}"
+        )
 
 
 @app.get("/categories", tags=["Info"])
@@ -144,10 +195,22 @@ async def get_categories():
 async def get_examples():
     return {
         "examples": [
-            {"text": "I hope you have a great day.", "expected": "Normal"},
-            {"text": "You are stupid and I hate you.", "expected": "Toxic"},
-            {"text": "You are a wonderful person.", "expected": "Normal"},
-            {"text": "This is a completely unacceptable comment.", "expected": "Normal"},
+            {
+                "text": "I hope you have a great day.",
+                "expected": "Normal"
+            },
+            {
+                "text": "You are stupid and I hate you.",
+                "expected": "Toxic"
+            },
+            {
+                "text": "You are a wonderful person.",
+                "expected": "Normal"
+            },
+            {
+                "text": "This is a completely unacceptable comment.",
+                "expected": "Normal"
+            },
         ]
     }
 
@@ -166,7 +229,14 @@ async def http_exception_handler(request, exc):
     )
 
 
+# ==================== LOCAL RUN ====================
+
 if __name__ == "__main__":
     print("Starting server at http://localhost:8000")
     print("API docs at http://localhost:8000/docs")
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+
+    uvicorn.run(
+        app,
+        host="0.0.0.0",
+        port=8000
+    )
